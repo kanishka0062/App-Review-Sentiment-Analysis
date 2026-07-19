@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App Review Sentiment Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root{
+    --bg:#F5F4F8;
+    --ink:#201B2E;
+    --ink-soft:#4A445A;
+    --muted:#7A748A;
+    --accent:#5B3FA0;
+    --accent-light:#8B6FC4;
+    --accent-wash:#EFEAF9;
+    --pos:#2F9E5B;
+    --neg:#E2483D;
+    --neu:#9CA0AE;
+    --card:#FFFFFF;
+    --line:#E4E1EC;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Inter', sans-serif; font-size:15px; line-height:1.5;
+  }
+  h1,h2,h3{font-family:'Space Grotesk', sans-serif; margin:0; letter-spacing:-0.01em;}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 24px;}
+
+  header.top{
+    background:var(--ink); color:#fff; padding:28px 0 22px;
+  }
+  header.top h1{font-size:26px; color:#fff;}
+  header.top p{margin:6px 0 0; color:#C9C2DE; font-size:14px;}
+
+  .controls{
+    background:var(--card); border-bottom:1px solid var(--line);
+    padding:14px 0; position:sticky; top:0; z-index:30;
+  }
+  .controls .wrap{display:flex; align-items:center; gap:18px; flex-wrap:wrap;}
+
+  .tabs{display:flex; gap:4px; background:var(--bg); padding:4px; border-radius:10px;}
+  .tab-btn{
+    border:none; background:transparent; padding:8px 16px; border-radius:8px;
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:13.5px;
+    color:var(--muted); cursor:pointer; transition:all .15s;
+  }
+  .tab-btn.active{background:var(--accent); color:#fff;}
+
+  .filter-wrap{position:relative; margin-left:auto;}
+  .filter-btn{
+    display:flex; align-items:center; gap:8px;
+    border:1px solid var(--line); background:#fff; padding:8px 14px; border-radius:8px;
+    font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--ink-soft); cursor:pointer;
+  }
+  .filter-btn:hover{border-color:var(--accent-light);}
+  .filter-panel{
+    display:none; position:absolute; right:0; top:calc(100% + 8px);
+    width:280px; max-height:340px; overflow-y:auto;
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 12px 28px rgba(32,27,46,0.14); padding:10px; z-index:40;
+  }
+  .filter-panel.open{display:block;}
+  .filter-actions{display:flex; gap:8px; padding:0 4px 8px; border-bottom:1px solid var(--line); margin-bottom:8px;}
+  .filter-actions button{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; border:none; background:var(--accent-wash);
+    color:var(--accent); padding:5px 10px; border-radius:6px; cursor:pointer;
+  }
+  .cat-item{display:flex; align-items:center; gap:8px; padding:5px 4px; font-size:13px; cursor:pointer; border-radius:6px;}
+  .cat-item:hover{background:var(--bg);}
+  .cat-item input{accent-color:var(--accent);}
+
+  main{padding:32px 0 60px;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .kpi-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px;}
+  .kpi-card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}
+  .kpi-label{font-family:'IBM Plex Mono', monospace; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);}
+  .kpi-value{font-family:'Space Grotesk', sans-serif; font-size:32px; font-weight:700; margin-top:6px; color:var(--ink);}
+  .kpi-sub{font-size:12.5px; color:var(--muted); margin-top:4px;}
+
+  .panel-grid{display:grid; grid-template-columns:1fr; gap:20px;}
+  .panel-grid.two{grid-template-columns:1fr 1fr;}
+  .chart-card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px 8px;}
+  .chart-card h3{font-size:15.5px; margin-bottom:2px;}
+  .chart-card .desc{font-size:12.5px; color:var(--muted); margin-bottom:6px;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--line);}
+  th{font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; color:var(--muted); cursor:pointer; user-select:none;}
+  th:hover{color:var(--accent);}
+  tbody tr:hover{background:var(--bg);}
+  .seg-tag{display:inline-block; font-family:'IBM Plex Mono', monospace; font-size:11px; padding:2px 8px; border-radius:5px;}
+
+  .corr-banner{display:flex; align-items:center; gap:22px; background:var(--accent-wash); border-radius:var(--radius); padding:18px 22px; margin-bottom:20px;}
+  .corr-banner .r-value{font-family:'Space Grotesk',sans-serif; font-size:34px; font-weight:700; color:var(--accent);}
+  .corr-banner .r-label{font-size:13.5px; color:var(--ink-soft); max-width:520px;}
+
+  @media (max-width:760px){
+    .panel-grid.two{grid-template-columns:1fr;}
+    .controls .wrap{gap:10px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <h1>App Review Sentiment Analytics</h1>
+    <p id="header-sub">Loading dataset…</p>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="category">Category Insights</button>
+      <button class="tab-btn" data-tab="rating">Rating Correlation</button>
+    </div>
+    <div class="filter-wrap">
+      <button class="filter-btn" id="filterBtn">▾ <span id="filterLabel">All Categories</span></button>
+      <div class="filter-panel" id="filterPanel">
+        <div class="filter-actions">
+          <button id="selectAll">Select all</button>
+          <button id="clearAll">Clear all</button>
+        </div>
+        <div id="catList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <section class="tab-panel active" id="tab-overview">
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Total Reviews</div><div class="kpi-value" id="kpi-total-reviews">–</div><div class="kpi-sub">in selected categories</div></div>
+      <div class="kpi-card"><div class="kpi-label">Apps Covered</div><div class="kpi-value" id="kpi-apps">–</div><div class="kpi-sub">distinct apps reviewed</div></div>
+      <div class="kpi-card"><div class="kpi-label">Overall Positive</div><div class="kpi-value" id="kpi-positive">–</div><div class="kpi-sub">of all reviews</div></div>
+    </div>
+    <div class="chart-card">
+      <h3>Overall Sentiment Split</h3>
+      <div class="desc">Share of Positive / Negative / Neutral reviews, computed live from the filtered dataset</div>
+      <div id="chart-donut" style="height:360px;"></div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-category">
+    <div class="panel-grid">
+      <div class="chart-card">
+        <h3>Negative Sentiment Rate by Category</h3>
+        <div class="desc">Highest-complaint categories at top · top 3 and bottom 3 highlighted</div>
+        <div id="chart-cat-negative" style="height:560px;"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Review Volume by Category</h3>
+        <div class="desc">So a category's sentiment stat isn't over-read from a tiny sample</div>
+        <div id="chart-cat-volume" style="height:420px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-rating">
+    <div class="corr-banner">
+      <div class="r-value" id="corr-r">–</div>
+      <div class="r-label" id="corr-label">Correlation between average review sentiment polarity and an app's overall star rating.</div>
+    </div>
+    <div class="chart-card" style="margin-bottom:20px;">
+      <h3>Sentiment Polarity vs. App Rating</h3>
+      <div class="desc">One point per app (5+ reviews) · point size = review volume</div>
+      <div id="chart-scatter" style="height:440px;"></div>
+    </div>
+    <div class="chart-card">
+      <h3>App Detail</h3>
+      <div class="desc">Click column headers to sort</div>
+      <div style="overflow-x:auto;">
+        <table id="app-table">
+          <thead><tr>
+            <th data-key="name">App</th>
+            <th data-key="categoryName">Category</th>
+            <th data-key="rating">Rating</th>
+            <th data-key="avgPolarity">Avg Sentiment</th>
+            <th data-key="reviewCount">Reviews</th>
+          </tr></thead>
+          <tbody id="app-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="dataset.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
